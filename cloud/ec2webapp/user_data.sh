@@ -88,7 +88,7 @@
         - db
       environment:
         POSTGRES_USER: "postgres"
-        POSTGRES_PASSWORD: "postgres"
+        POSTGRES_PASSWORD: "*****" # Use a secure password
         POSTGRES_DB: "postgres"
         POSTGRES_HOST: "db"
         POSTGRES_PORT: 5430
