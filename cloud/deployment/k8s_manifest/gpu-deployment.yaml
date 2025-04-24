@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gpu-deployment
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gpu-deployment
+  template:
+    metadata:
+      labels:
+        app: gpu-deployment
+      annotations:
+        controller.kubernetes.io/pod-deletion-cost: "-100"
+    spec:
+      containers:
+      - name: fastapi-container
+        image: "image:latest"
+        ports:
+        - containerPort: 5050
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "1Gi"
+            ephemeral-storage: "10Gi"
+            nvidia.com/gpu: "1"
+          limits:
+            cpu: "6500m"
+            memory: "25Gi"
+            ephemeral-storage: "20Gi"
+            nvidia.com/gpu: "1"
+        readinessProbe:
+          httpGet:
+            path: /v1/ready
+            port: 5050
+          initialDelaySeconds: 10
+          periodSeconds: 2
+          failureThreshold: 5
+          successThreshold: 1
+        lifecycle:
+          preStop:
+            exec:
+              command:
+                [
+                  "/bin/sh",
+                  "-c",
+                  'status_code=0; while [ $status_code -ne 200 ]; do echo "Waiting for idle: $(date)" > /proc/1/fd/1; status_code=$(curl -s -o /dev/null -w "%{http_code}" localhost:5050/v1/ready); sleep 1; done'
+                  ]
+        env:
+        - name: TRAINER_POD
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        volumeMounts:
+        - name: efs-volume
+          mountPath: "/mnt/"
+      volumes:
+      - name: efs-volume
+        persistentVolumeClaim:
+          claimName: efs-pvc
+      nodeSelector:
+        role: "GPU"
+      terminationGracePeriodSeconds: 360000  # Move this here at pod spec level

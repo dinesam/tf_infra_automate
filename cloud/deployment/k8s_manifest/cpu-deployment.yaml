@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cpu-deployment
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cpu-deployment
+  template:
+    metadata:
+      labels:
+        app: cpu-deployment
+    spec:
+      containers:
+      - name: fastapi-container
+        image: "image:latest"
+        ports:
+        - containerPort: 5050
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "2Gi"
+            ephemeral-storage: "5Gi"
+          limits:
+            cpu: "3"
+            memory: "27Gi"
+            ephemeral-storage: "10Gi"
+        readinessProbe:
+          httpGet:
+            path: /v1/ready
+            port: 5050
+          initialDelaySeconds: 10
+          periodSeconds: 2
+          failureThreshold: 5
+          successThreshold: 1
+        lifecycle:
+          preStop:
+            exec:
+              command:
+                [
+                  "/bin/sh",
+                  "-c",
+                  'status_code=0; while [ $status_code -ne 200 ]; do echo "Waiting for idle: $(date)" > /proc/1/fd/1; status_code=$(curl -s -o /dev/null -w "%{http_code}" localhost:5050/v1/ready); sleep 1; done'
+                  ]
+        env:
+        - name: TRAINER_POD
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        volumeMounts:
+        - name: efs-volume
+          mountPath: "/mnt/"
+      volumes:
+      - name: efs-volume
+        persistentVolumeClaim:
+          claimName: efs-pvc
+      nodeSelector:
+        role: "CPU"
+      terminationGracePeriodSeconds: 360000  
